@@ -80,8 +80,6 @@ def get_logs(logs_from_hours_ago: int = 36, cloudwatch_staleness_slo: int = 12) 
     print(f"{datetime.utcnow()} creating client connection")
     log_client = create_aws_client(resource="logs", profile_name="localadmin")
     sns_client = create_aws_client(resource="sns", profile_name="localadmin")
-    # sess = boto3.Session(profile_name="localadmin")
-    # sns_client = sess.client('sns')
 
     print(f"{datetime.utcnow()} getting log groups")
     print(f"received time start: {log_start_time_hr}, end: {log_end_time_hr}")
