@@ -4,7 +4,7 @@ import time
 from datetime import datetime, timedelta
 import os
 from typing import List, Optional, Tuple
-from types import *
+from data_types import *
 
 
 def make_batches(l: List, n: int):
