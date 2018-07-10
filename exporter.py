@@ -30,9 +30,9 @@ def get_export_status_code(c: boto3.client, task_id: str) -> str:
     return c.describe_export_tasks(taskId=task_id)["exportTasks"][0]["status"]["code"]
 
 
-def get_group_name_and_token(lg: LogGroup) -> Tuple[List[LogGroupName], Optional[NextToken]]:
+def get_group_names_and_token(lg: LogGroup) -> Tuple[List[LogGroupName], Optional[NextToken]]:
     try:
-        next_token = NextToken(lg["NextToken"])
+        next_token = NextToken(lg["nextToken"])
     except KeyError:
         next_token = None
     return [LogGroupName(lgn["logGroupName"]) for lgn in lg["logGroups"]], next_token
@@ -58,7 +58,7 @@ def maybe_export_log_group(lc: boto3.client, start_time: AwsTime, end_time: AwsT
         attempts += 1
         time.sleep(interval)
 
-    return f"{res} export status: {get_export_status_code(c=lc, task_id=res['taskId'])}\n"
+    return f"{lgn} export status: {get_export_status_code(c=lc, task_id=res['taskId'])}\n"
 
 
 def get_logs(logs_from_hours_ago: int = 36, cloudwatch_staleness_slo: int = 12) -> SnsResponse:
@@ -83,12 +83,16 @@ def get_logs(logs_from_hours_ago: int = 36, cloudwatch_staleness_slo: int = 12) 
 
     print(f"{datetime.utcnow()} getting log groups")
     print(f"received time start: {log_start_time_hr}, end: {log_end_time_hr}")
-    initial = log_client.describe_log_groups(limit=50)
-    print(initial)
-    initial_log_group_group_names, last_token = get_group_name_and_token(
+    initial = log_client.describe_log_groups()
+    print(f"initial token: {initial.get('nextToken', None)}")
+
+    global last_token
+    global total_log_count
+    initial_log_group_group_names, last_token = get_group_names_and_token(
             initial)
 
-    print(f"got {initial_log_group_group_names}\n last token: {last_token}")
+    total_log_count = len(initial_log_group_group_names)
+    print(f"got {initial_log_group_group_names[:5]}...\n last token: {last_token}")
 
     # Todo: stop lying that this is a List[str] and handle exceptions in maybe
     results_report = "\n".join([maybe_export_log_group(
@@ -96,31 +100,30 @@ def get_logs(logs_from_hours_ago: int = 36, cloudwatch_staleness_slo: int = 12) 
         start_time=log_start_time_ts,
         end_time=log_end_time_ts,
         prefix_time=log_start_time_hr,
-        lgn=x)
-        for x in initial_log_group_group_names])
+        lgn=lgn)
+        for lgn in initial_log_group_group_names])
 
     # in case we have more than 50 results, aws will send a nextToken and there is
     # see https://boto3.readthedocs.io/en/latest/reference/services/logs.html#CloudWatchLogs.Client.describe_log_groups
-    while last_token:
+    while last_token is not None:
         print(f"{datetime.utcnow()} last token was: {last_token}")
-        log_group_group_name, last_token = get_group_name_and_token(
+        log_group_group_names, last_token = get_group_names_and_token(
             log_client.describe_log_groups(nextToken=last_token))
         print(f"{datetime.utcnow()} last token changed to: {last_token}")
 
-        progress_message = f"{time.strftime(date_format)}: {log_group_group_name}"
-
+        progress_message = f"{time.strftime(date_format)}: #{total_log_count} logs processed so far."
+        total_log_count += len(log_group_group_names)
         print(f"{datetime.utcnow()} {progress_message}")
 
-        results_report += f"\n{progress_message}"
         results_report += "\n".join([maybe_export_log_group(
             lc=log_client,
             start_time=log_start_time_ts,
             end_time=log_end_time_ts,
             prefix_time=log_start_time_hr,
-            lgn=x)
-            for x in initial_log_group_group_names])
+            lgn=lgn)
+            for lgn in log_group_group_names])
 
-    return publish_to_sns(message=results_report, c=sns_client)
+    return publish_to_sns(message=f"Processed a total of {total_log_count} logs:\n\n{results_report}", c=sns_client)
 
 
 if __name__ == '__main__':
