@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from itertools import chain
 
 import boto3
 import time
