@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from itertools import chain
+
 import boto3
 import time
 from datetime import datetime, timedelta
@@ -47,7 +49,7 @@ def maybe_export_log_group(lc: boto3.client, start_time: AwsTime, end_time: AwsT
         fromTime=start_time,
         to=end_time,
         destination=os.environ.get("LOGS_BUCKET", "cloudwatch-logs-coldstorage"),
-        destinationPrefix=f"cloudwatchlogs_{lgn}/{prefix_time}"
+        destinationPrefix=f"cloudwatchlogs{lgn}/{prefix_time}"
     ))
 
     attempts = 0
@@ -78,8 +80,8 @@ def get_logs(logs_from_hours_ago: int = 36, cloudwatch_staleness_slo: int = 12) 
     log_end_time_ts = AwsTime(int(log_end_time.timestamp() * 1000))
 
     print(f"{datetime.utcnow()} creating client connection")
-    log_client = create_aws_client(resource="logs", profile_name="localadmin")
-    sns_client = create_aws_client(resource="sns", profile_name="localadmin")
+    log_client = create_aws_client(resource="logs", profile_name=os.environ.get("CUSTOM_AWS_PROFILE", None))
+    sns_client = create_aws_client(resource="sns", profile_name=os.environ.get("CUSTOM_AWS_PROFILE", None))
 
     print(f"{datetime.utcnow()} getting log groups")
     print(f"received time start: {log_start_time_hr}, end: {log_end_time_hr}")
@@ -127,5 +129,5 @@ def get_logs(logs_from_hours_ago: int = 36, cloudwatch_staleness_slo: int = 12) 
 
 
 if __name__ == '__main__':
-    result = get_logs(logs_from_hours_ago=36)
+    result = get_logs(logs_from_hours_ago=int(os.environ.get("LOGS_FROM_OURS_AGO", 36)))
     print(result)
