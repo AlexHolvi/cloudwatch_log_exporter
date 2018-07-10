@@ -128,5 +128,5 @@ def get_logs(logs_from_hours_ago: int = 36, cloudwatch_staleness_slo: int = 12) 
 
 
 if __name__ == '__main__':
-    result = get_logs(logs_from_hours_ago=int(os.environ.get("LOGS_FROM_OURS_AGO", 36)))
+    result = get_logs(logs_from_hours_ago=int(os.environ.get("LOGS_FROM_HOURS_AGO", 36)))
     print(result)
