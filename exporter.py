@@ -4,7 +4,8 @@ import boto3
 import time
 from datetime import datetime, timedelta
 import os
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Set
+from funcy import any
 from data_types import *
 
 
@@ -62,8 +63,10 @@ def maybe_export_log_group(lc: boto3.client, start_time: AwsTime, end_time: AwsT
     return f"{lgn} export status: {get_export_status_code(c=lc, task_id=res['taskId'])}\n"
 
 
-def get_logs(logs_from_hours_ago: int = 36, cloudwatch_staleness_slo: int = 12) -> SnsResponse:
+def get_logs(logs_from_hours_ago: int = 36, cloudwatch_staleness_slo: int = 12,
+             exclude_prefixes: Set[str]={"sns/"}) -> SnsResponse:
     """
+    :param exclude:
     :param cloudwatch_staleness_slo: Cloudwatch logs availability has a bounded staleness for 12 hours (2018)
     :param logs_from_hours_ago: how many hours into the past to go when starting logging
     :return: SnsResponse
@@ -102,7 +105,7 @@ def get_logs(logs_from_hours_ago: int = 36, cloudwatch_staleness_slo: int = 12) 
         end_time=log_end_time_ts,
         prefix_time=log_start_time_hr,
         lgn=lgn)
-        for lgn in initial_log_group_group_names])
+        for lgn in initial_log_group_group_names if not any(lgn.startswith(ex) for ex in exclude_prefixes)])
 
     # in case we have more than 50 results, aws will send a nextToken and there is
     # see https://boto3.readthedocs.io/en/latest/reference/services/logs.html#CloudWatchLogs.Client.describe_log_groups
@@ -122,7 +125,7 @@ def get_logs(logs_from_hours_ago: int = 36, cloudwatch_staleness_slo: int = 12) 
             end_time=log_end_time_ts,
             prefix_time=log_start_time_hr,
             lgn=lgn)
-            for lgn in log_group_group_names])
+            for lgn in log_group_group_names if not any(lgn.startswith(ex) for ex in exclude_prefixes)])
 
     return publish_to_sns(message=f"Processed a total of {total_log_count} logs:\n\n{results_report}", c=sns_client)
 
